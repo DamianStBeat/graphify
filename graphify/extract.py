@@ -1,6 +1,7 @@
 """Deterministic structural extraction from source code using tree-sitter. Outputs nodes+edges dicts."""
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import importlib
 import json
@@ -1551,6 +1552,13 @@ _LUA_CONFIG = LanguageConfig(
     import_handler=_import_lua,
 )
 
+# Luau (Roblox) is a typed superset of Lua 5.1. tree-sitter-lua stops at the
+# first Luau-only construct (if-expression, `::` cast, generics, string
+# interpolation, `+=`, `continue`, `export type`) and silently drops every
+# symbol declared after it (#2520). tree-sitter-luau emits the same node types
+# the Lua walk consumes, so `.luau` shares the config and swaps the grammar.
+_LUAU_CONFIG = dataclasses.replace(_LUA_CONFIG, ts_module="tree_sitter_luau")
+
 
 def _import_swift(node, source: bytes, file_nid: str, stem: str, edges: list, str_path: str, scope_stack: list[str] | None = None) -> list[tuple[str, str]]:
     """Emit module-level ``imports`` edges and report the imported modules.
@@ -3026,6 +3034,16 @@ def extract_php(path: Path) -> dict:
 def extract_lua(path: Path) -> dict:
     """Extract functions, methods, require() imports, and calls from a .lua file."""
     return _extract_generic(path, _LUA_CONFIG)
+
+
+def extract_luau(path: Path) -> dict:
+    """Extract functions, methods, require() imports, and calls from a .luau file.
+
+    Same walk as :func:`extract_lua`, parsed with the Luau grammar so typed
+    Roblox code is extracted whole instead of truncated at the first
+    Luau-only construct (#2520).
+    """
+    return _extract_generic(path, _LUAU_CONFIG)
 
 
 def extract_swift(path: Path) -> dict:
@@ -6745,7 +6763,7 @@ _DISPATCH: dict[str, Any] = {
     ".php": extract_php,
     ".swift": extract_swift,
     ".lua": extract_lua,
-    ".luau": extract_lua,
+    ".luau": extract_luau,
     ".toc": extract_lua,
     ".zig": extract_zig,
     ".ps1": extract_powershell,
@@ -6877,6 +6895,7 @@ _SHEBANG_DISPATCH: dict[str, Any] = {
     "nodejs": extract_js,
     "ruby": extract_ruby,
     "lua": extract_lua,
+    "luau": extract_luau,
     "php": extract_php,
     "julia": extract_julia,
     "Rscript": extract_r,
