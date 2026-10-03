@@ -27,6 +27,7 @@ from .ruby_resolution import resolve_ruby_member_calls
 from .csharp_dispatch import resolve_csharp_interface_dispatch
 from .pascal_resolution import resolve_pascal_inherited_calls
 from .markdown_resolution import MARKDOWN_MENTION_SUFFIXES, resolve_markdown_mentions
+from .rojo_resolution import resolve_rojo_requires
 
 # --- migrated to graphify/extractors/ (see graphify/extractors/MIGRATION.md) ---
 from graphify.extractors.base import (  # noqa: F401
@@ -3041,7 +3042,9 @@ def extract_luau(path: Path) -> dict:
 
     Same walk as :func:`extract_lua`, parsed with the Luau grammar so typed
     Roblox code is extracted whole instead of truncated at the first
-    Luau-only construct (#2520).
+    Luau-only construct (#2520). The result also carries the require facts
+    (``luau_module``) that :mod:`graphify.rojo_resolution` resolves through a
+    Rojo project file.
     """
     return _extract_generic(path, _LUAU_CONFIG)
 
@@ -7661,6 +7664,23 @@ def extract(
     # passes below (which rewrite node ids), so it can never go stale — see the
     # marker set in the per-file extractor. Populated just before the pass that uses it.
     callable_nids: set[str] = set()
+
+    # Luau require() through Rojo project files (#2520). Runs HERE, before the
+    # id-remap passes below, so a resolved require carries a `target_file`
+    # stamp the remap canonicalizes like any other resolved import, including
+    # a target in an unchanged file on an incremental rebuild (#2169). The
+    # tail registry run comes after the remap and would be too late. Bound to
+    # the scan root, which caps the walk up to the nearest `*.project.json`.
+    # Uses the registry driver for the suffix gate and failure isolation, like
+    # the Kotlin import-target pass below.
+    run_language_resolvers(
+        paths, [r for r in per_file if r is not None], all_nodes, all_edges,
+        resolvers=[LanguageResolver(
+            "luau_rojo_requires",
+            frozenset({".luau"}),
+            lambda pf, nodes, edges: resolve_rojo_requires(pf, nodes, edges, root=root),
+        )],
+    )
 
     _suppress_ambiguous_python_imports(
         all_edges, all_nodes, all_raw_calls, ambiguous_python_modules,

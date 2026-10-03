@@ -376,6 +376,15 @@ instances. Incremental Terraform changes reconcile the scanned `.tf` corpus,
 reusing cached syntax for unchanged files. After upgrading an existing graph,
 run `graphify update .` once to regenerate Terraform IDs and topology.
 
+Luau `require()` calls on a Roblox project resolve through its Rojo
+`*.project.json`: an instance path such as
+`require(ReplicatedStorage.Shared.Util.Logger)` or `require(script.Parent.Config)`
+becomes an `imports` edge to the file Rojo syncs there, following local aliases
+and modules that return a table of instance paths. A path with no script behind
+it stays an external node named after the instance path. Scan the directory
+that holds the project file (or one above it); without one, `.luau` imports
+behave as in plain Lua.
+
 Code is extracted **locally with no API calls** (AST via tree-sitter). Everything else goes through your AI assistant's model API.
 
 Google Drive for desktop `.gdoc`, `.gsheet`, and `.gslides` files are shortcut

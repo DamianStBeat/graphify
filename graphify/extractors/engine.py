@@ -8,6 +8,7 @@ from graphify.extractors.base import _LANGUAGE_BUILTIN_GLOBALS, _file_stem, _mak
 from graphify.ids import normalize_id
 from graphify.extractors.models import LanguageConfig
 from graphify.extractors.resolution import _resolve_js_import_target
+from graphify.extractors.luau_facts import LUAU_FACTS_KEY, luau_module_facts
 from graphify.security import sanitize_metadata
 from pathlib import Path
 
@@ -7513,6 +7514,12 @@ def _extract_generic(
         _pkg = _kotlin_package_name(root, source)
         if _pkg:
             result["kotlin_package"] = _pkg
+    # Luau (#2520): require arguments, local bindings and the returned table,
+    # reduced to instance-path chains for the Rojo require resolver. Present,
+    # possibly empty, on every Luau result: the resolver only rebuilds the
+    # edges of a result that carries it.
+    if config.ts_module == "tree_sitter_luau":
+        result[LUAU_FACTS_KEY] = luau_module_facts(root, source)
     if callable_def_nids:
         # Mark function / method / class defs with a `_callable` attribute so the
         # cross-file indirect_call pass can resolve a by-name callback only to a real
