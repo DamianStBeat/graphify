@@ -1488,6 +1488,28 @@ def test_luau_and_lua_use_distinct_grammars():
     assert _DISPATCH[".lua"] is extract_lua
     assert _DISPATCH[".toc"] is extract_lua
 
+# The engine's Lua-only paths cover Luau too: the bare `require` statement
+# (#3320) and the `self:` / colon-call resolution with its fail-closed guard
+# (#3991) are keyed on the grammar, and Luau has its own.
+
+def _extract_luau_methods_fixture():
+    from graphify.extract import _DISPATCH
+    return _DISPATCH[".luau"](FIXTURES / "sample_methods.luau")
+
+def test_luau_bare_require_statement_is_an_import():
+    r = _extract_luau_methods_fixture()
+    targets = {e["target"] for e in _edges_with_relation(r, "imports")}
+    assert "script_parent_bootstrap" in targets
+
+def test_luau_self_colon_call_binds_to_the_table_method():
+    calls = _calls(_extract_luau_methods_fixture())
+    assert ("Server:restart()", "Server:stop()") in calls
+    assert ("Server:restart()", "stop()") not in calls
+
+def test_luau_colon_call_on_unknown_receiver_is_fail_closed():
+    calls = _calls(_extract_luau_methods_fixture())
+    assert ("Server:relay()", "stop()") not in calls
+
 
 def test_swift_no_error():
     r = extract_swift(FIXTURES / "sample.swift")
